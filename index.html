@@ -1102,6 +1102,10 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<!-- Secondary Firebase app (separate web-app registration in the same project, adds
+     Analytics + Realtime Database). Kept isolated from the primary app above. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 </head>
 <body>
 
@@ -2004,6 +2008,29 @@ try {
     FIREBASE_ENABLED = true;
   }
 } catch (e) { console.error('Firebase init failed:', e); FIREBASE_ENABLED = false; }
+
+// ---------- Secondary Firebase app (separate web-app registration, same project) ----------
+// Kept completely isolated from the primary app/config above via a named secondary app,
+// so it can't interfere with login or the leaderboard. Adds Analytics + Realtime Database.
+const firebaseConfig2 = {
+  apiKey: "AIzaSyBVTq9-2RSBNFoA7PXiXzn9s5LmwxNuHpo",
+  authDomain: "jee2027-9d55a.firebaseapp.com",
+  databaseURL: "https://jee2027-9d55a-default-rtdb.firebaseio.com",
+  projectId: "jee2027-9d55a",
+  storageBucket: "jee2027-9d55a.firebasestorage.app",
+  messagingSenderId: "450231967529",
+  appId: "1:450231967529:web:6fe0e0904242e3a671e138",
+  measurementId: "G-K85RQ4E9KZ"
+};
+
+let fbApp2 = null, fbAnalytics2 = null, fbRealtimeDb2 = null;
+try {
+  if (typeof firebase !== 'undefined' && firebaseConfig2.apiKey) {
+    fbApp2 = firebase.initializeApp(firebaseConfig2, "secondary");
+    fbAnalytics2 = firebase.analytics(fbApp2);
+    fbRealtimeDb2 = firebase.database(fbApp2);
+  }
+} catch (e) { console.error('Secondary Firebase init failed:', e); }
 
 function openLoginModal() {
   document.getElementById('login-modal-overlay').classList.add('open');
