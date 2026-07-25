@@ -952,6 +952,7 @@
   .lb-section h2 { margin-top: 0; font-size: 1.05rem; font-family: 'Orbitron', sans-serif; color: var(--lb); display:flex; align-items:center; gap:8px; justify-content:space-between; }
   table.lb-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
   table.lb-table th { text-align: left; color: var(--text-muted); border-bottom: 1px solid var(--border); padding: 8px 6px; font-family: 'Orbitron', sans-serif; font-weight: 600; }
+  .lb-standard { color: var(--text-muted); font-size: 0.82em; }
   table.lb-table td { padding: 9px 6px; border-bottom: 1px solid var(--locked); }
   .lb-rank { font-family: 'Orbitron', sans-serif; font-weight: 800; }
   .lb-you { background: rgba(255,217,61,0.06); }
@@ -1181,6 +1182,13 @@
       <button class="util-btn util-btn-violet" onclick="doGoogleSignIn()">Sign in with Google</button>
     </div>
     <input type="text" id="login-display-name" placeholder="Optional: custom leaderboard name" autocomplete="off" maxlength="20" onkeydown="if(event.key==='Enter'){event.preventDefault();doGoogleSignIn();}">
+    <select id="login-standard" style="width:100%; background:#040609; border:1px solid var(--border); color:var(--text-main); padding:9px 10px; border-radius:6px; font-size:0.88rem; margin-bottom:10px; box-sizing:border-box;">
+      <option value="">Standard (optional)</option>
+      <option value="10th">10th</option>
+      <option value="11th">11th</option>
+      <option value="12th">12th</option>
+      <option value="Drop">Drop</option>
+    </select>
     <div class="login-modal-actions" style="margin-top:6px;">
       <button class="util-btn" onclick="closeLoginModal()">Cancel</button>
     </div>
@@ -2039,6 +2047,8 @@ function openLoginModal() {
   document.getElementById('login-modal-msg').textContent = '';
   const input = document.getElementById('login-display-name');
   if (input) { input.value = (playerName && playerName !== 'Player') ? playerName : ''; setTimeout(() => input.focus(), 50); }
+  const stdSelect = document.getElementById('login-standard');
+  if (stdSelect) stdSelect.value = playerStandard || '';
 }
 
 function closeLoginModal() {
@@ -2061,6 +2071,9 @@ async function doGoogleSignIn() {
   const customNameInput = document.getElementById('login-display-name');
   const customName = customNameInput ? customNameInput.value.trim() : '';
   if (customName && customName.length < 2) { loginMsg('Custom name must be at least 2 characters'); return; }
+  const stdSelect = document.getElementById('login-standard');
+  playerStandard = stdSelect ? stdSelect.value : '';
+  try { await localDB.set('jee-player-standard', JSON.stringify(playerStandard), false); } catch (e) { /* ignore */ }
 
   if (FIREBASE_ENABLED) {
     try {
@@ -2159,6 +2172,7 @@ function buildOwnStats() {
   const league = (typeof tierForXp === 'function') ? tierForXp(weeklyXp) : { key: 'beginner', name: 'Beginner' };
   return {
     name: playerName || (currentUser && currentUser.displayName) || 'Player',
+    standard: playerStandard || '',
     updatedAt: new Date().toISOString(),
     overallCompletion: Math.round(getOverallPercent()),
     subjectCompletion: {
@@ -2909,6 +2923,7 @@ let chapter70Dates = {}; // chapterId -> 'YYYY-MM-DD' the FIRST time it hit 70% 
 let revisionCounts = {}; // chapterId -> number of times manually marked as revised
 let examDate = null; // 'YYYY-MM-DD' target exam date set by the user, or null
 let playerName = '';     // Battle Tag used for the shared leaderboard
+let playerStandard = ''; // 10th / 11th / 12th / Drop — shown next to name on the leaderboard
 let lbSubject = 'physics';
 
 // ---------- Level system ----------
@@ -5082,6 +5097,13 @@ async function loadPlayerName() {
   } catch (e) { return ''; }
 }
 
+async function loadPlayerStandard() {
+  try {
+    const result = await localDB.get('jee-player-standard', false);
+    return result ? JSON.parse(result.value) : '';
+  } catch (e) { return ''; }
+}
+
 function updateBattleTagStatus() {
   // Kept as a no-op passthrough for older calls in the codebase — actual account
   // status is now shown in #account-bar via updateAccountBarUI().
@@ -5100,6 +5122,9 @@ function renderLeaderboard() {
   const overallBody = document.getElementById('lb-overall-body');
   const subjectBody = document.getElementById('lb-subject-body');
   if (!overallBody || !subjectBody || !leagueBody) return;
+
+  // Shows "Name (11th)" etc. next to the player's name wherever it's rendered below.
+  const nameWithStandard = (e) => e.standard ? `${e.name} <span class="lb-standard">(${e.standard})</span>` : e.name;
 
   if (!currentUser) {
     const msg = '<tr><td colspan="6" class="lb-empty">Sign in above to see and join the leaderboard.</td></tr>';
@@ -5144,7 +5169,7 @@ function renderLeaderboard() {
     const rankIcon = medals[i] || (i + 1);
     return `<tr class="${isYou ? 'lb-you' : ''}">
       <td class="lb-rank">${rankIcon}</td>
-      <td>${e.name}${isYou ? ' (you)' : ''}</td>
+      <td>${nameWithStandard(e)}${isYou ? ' (you)' : ''}</td>
       <td>${tierIcons[e.leagueKey] || '💠'} ${e.leagueName || 'Beginner'}</td>
       <td>${e.weeklyXp || 0} XP</td>
     </tr>`;
@@ -5165,7 +5190,7 @@ function renderLeaderboard() {
     const major = e.major || { avgPct: null, count: 0, bestPct: null };
     return `<tr class="${isYou ? 'lb-you' : ''}">
       <td class="lb-rank">${rankIcon}</td>
-      <td>${e.name}${isYou ? ' (you)' : ''}</td>
+      <td>${nameWithStandard(e)}${isYou ? ' (you)' : ''}</td>
       <td>${major.avgPct !== null ? major.avgPct + '%' : '—'}</td>
       <td>${major.count}</td>
       <td>${major.bestPct !== null ? major.bestPct + '%' : '—'}</td>
@@ -5187,7 +5212,7 @@ function renderLeaderboard() {
     const doneChapters = chapterCount > 0 ? Math.round((pct / 100) * chapterCount) : 0;
     return `<tr class="${isYou ? 'lb-you' : ''}">
       <td class="lb-rank">${rankIcon}</td>
-      <td>${e.name}${isYou ? ' (you)' : ''}</td>
+      <td>${nameWithStandard(e)}${isYou ? ' (you)' : ''}</td>
       <td>${pct}%</td>
       <td>~${doneChapters} / ${chapterCount}</td>
     </tr>`;
@@ -6724,6 +6749,7 @@ async function init() {
   renderChipRow();
 
   playerName = (await loadPlayerName()) || '';
+  playerStandard = (await loadPlayerStandard()) || '';
   updateBattleTagStatus();
   initAuthWatcher();
 
